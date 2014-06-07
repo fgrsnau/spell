@@ -3,7 +3,8 @@ module Spell.Edit where
 import           Control.Monad (guard)
 
 import           Data.Maybe (fromJust, isJust, listToMaybe)
-import           Data.Trie (TrieFunction)
+import           Data.Text (Text)
+import qualified Data.Text as T
 import           Data.Vector.Unboxed (Vector, Unbox)
 import qualified Data.Vector.Unboxed as V
 
@@ -24,20 +25,19 @@ defaultPenalties = Penalties
     , penaltyReversal     = \_ _ -> 1
     }
 
-calculateEdit :: (Eq k, Num p, Ord p, Unbox k, Unbox p) => Penalties k p -> [k] -> TrieFunction k (Vector p)
-calculateEdit p reference = f
+calculateEdit :: (Num p, Ord p, Unbox p)
+                 => Penalties Char p -> Text -> [Char] -> [Vector p] -> Vector p
+calculateEdit p r = f
   where
-    r = V.fromList reference
-
-    f [] []  = V.fromList $ scanl1 (+) (0 : map (penaltyInsertion p Nothing) reference)
-    f ks vs = V.constructN (V.length r + 1) (f' ks vs)
+    f [] [] = V.scanl (+) 0 . V.map (penaltyInsertion p Nothing) . V.fromList $ T.unpack r
+    f ks vs = V.constructN (T.length r + 1) (f' ks vs)
 
     f' (k:ks) (v:vs) v'
       | V.null v' = v V.! i + penaltyDeletion p (listToMaybe ks) k
       | isJust reversal = fromJust reversal
       | otherwise = minimum [ v  V.!   i   + penaltyDeletion p (listToMaybe ks) k
-                            , v' V.! (i-1) + penaltyInsertion p (Just k) (r V.! (i-1))
-                            , v  V.! (i-1) + penaltySubstitution p k (r V.! (i-1))
+                            , v' V.! (i-1) + penaltyInsertion p (Just k) (r `T.index` (i-1))
+                            , v  V.! (i-1) + penaltySubstitution p k (r `T.index` (i-1))
                             ]
       where
         i = V.length v'
@@ -45,8 +45,10 @@ calculateEdit p reference = f
         reversal = do
           let currentSuggestion = k
           lastSuggestion <- listToMaybe ks
-          let currentChar = r V.! (i-1)
-          lastChar <- r V.!? (i-2)
+          let currentChar = r `T.index` (i-1)
+          lastChar <- do
+            guard $ i - 2 >= 0
+            return $ r `T.index` (i - 2)
           correctVector <- listToMaybe vs
           guard (currentSuggestion == lastChar)
           guard (lastSuggestion == currentChar)
