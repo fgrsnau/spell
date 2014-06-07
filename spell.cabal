@@ -11,6 +11,7 @@ library
     build-depends:
         array        == 0.5.*,
         base         == 4.7.*,
+        binary       == 0.7.*,
         containers   == 0.5.*,
         ListLike     == 4.1.*,
         text         == 1.1.*,

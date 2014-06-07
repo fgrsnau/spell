@@ -4,6 +4,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 module Data.Trie.Internal where
 
+import Data.Binary (Binary)
 import Data.Foldable (Foldable)
 import Data.Map (Map)
 import Data.Traversable (Traversable)
@@ -16,3 +17,6 @@ data Trie k v = Trie
       , end      :: Bool
       , children :: Map k (Trie k v)
       } deriving (Foldable, Functor, Generic, Read, Eq, Show, Traversable)
+
+
+instance (Binary k, Binary v) => Binary (Trie k v) where
