@@ -2,8 +2,8 @@
 module Data.Trie
     ( Trie
     , empty
-    , insert, delete, delete', cut, cut', prune
-    , lookup, update
+    , insert, delete, delete', cut, cut', update, prune
+    , lookup, value, end, branches
     , fromList, toList, skeleton, populate
     ) where
 
@@ -77,6 +77,9 @@ lookup :: (ListLike l k, Ord k) => l -> Trie k v -> Maybe v
 lookup ks t
   | LL.null ks = guard (end t) >> Just (value t)
   | otherwise  = M.lookup (LL.head ks) (children t) >>= lookup (LL.tail ks)
+
+branches :: Trie k v -> [(k, Trie k v)]
+branches t = M.toList (children t)
 
 toList :: (ListLike l k, Ord k) => Trie k v -> [(l, v)]
 toList t
