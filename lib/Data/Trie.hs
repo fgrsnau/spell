@@ -5,6 +5,7 @@ module Data.Trie
     , insert, delete, delete', cut, cut', update, prune
     , lookup, value, end, branches
     , fromList, toList, skeleton, populate
+    , expandPaths
     ) where
 
 import           Prelude hiding (lookup)
@@ -99,3 +100,6 @@ skeleton = fromList (\_ _ -> ())
 
 populate :: Ord k => ([k] -> [v] -> v) -> Trie k () -> Trie k v
 populate f = update (const f)
+
+expandPaths :: (ListLike lk k, Ord k) => Trie k v -> Trie k (lk, v)
+expandPaths = update (\v ps _ -> (LL.reverse (LL.fromList ps), v))
