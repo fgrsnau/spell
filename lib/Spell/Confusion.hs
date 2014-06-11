@@ -14,7 +14,7 @@ confusionPenalties = Penalties
     { penaltyInsertion    = arrayLookup' arrayInsertion
     , penaltyDeletion     = arrayLookup' arrayDeletion
     , penaltyReversal     = arrayLookup  arrayReversal
-    , penaltySubstitution = \x y -> if x == y
+    , penaltySubstitution = \x y -> if x == y || abs (ord x - ord y) == 32
                                     then goodValue
                                     else arrayLookup arraySubstitution x y
     }
