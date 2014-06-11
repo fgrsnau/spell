@@ -1,3 +1,18 @@
+{-# LANGUAGE Trustworthy #-}
+
+-- |
+-- Module      : Spell.Edit
+-- Description : Calculation of Minimum Edit Distance (MED).
+-- Copyright   : (c) Stefan Haller, 2014
+--
+-- License     : MIT
+-- Maintainer  : s6171690@mail.zih.tu-dresden.de
+-- Stability   : experimental
+-- Portability : portable
+--
+-- This module allows to calculate the
+-- <http://en.wikipedia.org/wiki/Minimum_Edit_Distance Minimum Edit Distance>
+-- using <http://en.wikipedia.org/wiki/Trie prefix trees>.
 module Spell.Edit where
 
 import           Control.Arrow ((&&&))
@@ -13,6 +28,18 @@ import           Data.Vector.Unboxed (Vector, Unbox)
 import qualified Data.Vector.Unboxed as V
 
 
+-- | Aggregation of penalty functions.
+--
+-- All these functions receive both characters as arguments. The first argument
+-- for the insertion and deletion is optional (because insertions and deletions
+-- at the beginning of the word do not have a reference character).
+--
+-- Note that the function calculate the penalties for an edit operation where
+-- the expected character is modified to match the character of the input.
+--
+-- (This behavior is the same as in the reference literature: Mark D. Kernighan,
+-- Kenneth W. Church und William A. Gale. „A spelling correction program based
+-- on a noisy channel model“)
 data Penalties a p = Penalties
     { penaltyInsertion    :: Maybe a -> a -> p
     , penaltyDeletion     :: Maybe a -> a -> p
@@ -21,6 +48,7 @@ data Penalties a p = Penalties
     }
 
 
+-- | Penalty functions where all edit operations have a cost of @1@.
 defaultPenalties :: Eq a => Penalties a Int
 defaultPenalties = Penalties
     { penaltyInsertion    = \_ _ -> 1
@@ -29,6 +57,8 @@ defaultPenalties = Penalties
     , penaltyReversal     = \_ _ -> 1
     }
 
+-- | Calculates the column vectors for the nodes in the 'Trie'. Meant
+-- to be used with 'populate'.
 calculateEdit :: (Num p, Ord p, Unbox p)
                  => Penalties Char p -> Text -> [Char] -> [Vector p] -> Vector p
 calculateEdit p r = f
@@ -60,10 +90,60 @@ calculateEdit p r = f
 
     f' _ _ _ = error "This function should never get called."
 
-
+-- | Shrinks the column vectors of the 'Trie' nodes.
+--
+-- The calculation of the best edit does not need the whole vectors. It
+-- only needs:
+--
+--  * The last (top-most) element of the vector, because this represents
+--    the edit distance of the current node.
+--
+--  * The minimum element of the vector, because we later use this value as
+--    heuristic. Each edit path must pass this column vector and the scores
+--    can only get higher. If we have an edit with a value smaller than
+--    this minimum, we can completely ignore this node.
 shrinkMatrices :: (Ord p, Unbox p) => Trie Char (Vector p) -> Trie Char (p, p)
 shrinkMatrices = fmap (V.last &&& V.minimum)
 
+-- | Lazily returns all suggestions sorted in order of increasing edit distance.
+--
+-- To calculate only the best suggestion use @head . searchBestEdits@. To
+-- get the best 10 suggestions you can use @take 10 . searchBestEdit@.
+--
+-- The internal implementation uses some kind of greedy algorithm (similiar
+-- to Dijkstra or A*, but to simplified for a tree structure):
+--
+-- There are two priority queues:
+--
+--  * The queue for end nodes (“finished queue”). The priority measure is
+--    the minimum edit distance (= the top-most element of the column
+--    vector).
+--
+--  * The queue for discovered nodes (“working queue”). The priority measure is the
+--    minimum value of the colum vector.
+--
+-- After initializing the working queue with the given 'Trie' node, the
+-- algorithm works as follows:
+--
+--  * Take the first element of working queue.
+--
+--  * If the value is greater than the minimum value in finished queue, the
+--    next finished node is optimal. All paths must pass through exactly
+--    one cell of each column vector of the path. The current working node
+--    is on the best undiscoverd path. If the value of the next finished
+--    node is lower, it must be optimal. So we return the next finished
+--    node as the next result.
+--
+--  * Expand children of current working node and insert them into the
+--    working queue.
+--
+--  * If the current working node is an end node, insert it into the
+--    finished queue.
+--
+--  * In any case, the current working node is dropped from the working
+--    queue.
+--
+--  * Repeat everything until the working queue is empty.
 searchBestEdits :: (Num p, Ord p) => Trie Char (Text, (p, p)) -> [Text]
 searchBestEdits trie = processQueue (finished, queue)
   where
@@ -89,8 +169,18 @@ searchBestEdits trie = processQueue (finished, queue)
 
     processBranches t = let (_, (_, min')) = value t in (min', t)
 
+-- | One-shot function for determining the best suggestions.
+--
+-- This function works lazily, for more information see 'searchBestEdits'.
 bestEdits :: (Num p, Ord p, Unbox p)
-             => Penalties Char p -> Maybe p -> Text -> Trie Char () -> [Text]
+             => Penalties Char p -- ^ The penalties used for calculating the MED.
+             -> Maybe p          -- ^ Nodes where the minimum of the column
+                                 --   vector is greater (or equal) than this
+                                 --   'Just' value are cutted. 'Nothing'
+                                 --   prevents cutting.
+             -> Text             -- ^ The reference word.
+             -> Trie Char ()     -- ^ The 'Trie' 'Data.Trie.skeleton'.
+             -> [Text]
 bestEdits p c r = searchBestEdits
                 . expandPaths
                 . maybe id doCut c

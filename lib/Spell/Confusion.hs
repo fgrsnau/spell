@@ -1,4 +1,40 @@
-module Spell.Confusion where
+{-# LANGUAGE Safe #-}
+
+-- |
+-- Module      : Spell.Confusion
+-- Description : Alternative penalty function.
+-- Copyright   : (c) Stefan Haller, 2014
+--
+-- License     : MIT
+-- Maintainer  : s6171690@mail.zih.tu-dresden.de
+-- Stability   : experimental
+-- Portability : portable
+--
+-- Implementation of penalty functions using confusion matrices.
+--
+-- The matrices were extracted from the following work:
+--
+-- Mark D. Kernighan, Kenneth W. Church und William A. Gale. „A spelling
+-- correction program based on a noisy channel model“. In: Proceedings of the
+-- 13th conference on Computational linguistics - Volume 2. COLING ’90. Hel-
+-- sinki, Finland: Association for Computational Linguistics, 1990, S. 205–210.
+-- doi: 10.3115/997939.997975
+--
+-- There are some custom modifications:
+--
+--  * We do use the values of the matrix as penalties, but the
+--    original matrices were containing frequencies. This is done by
+--    normalizing all the value to the range @[0, 1]@. The resulting
+--    range is afterwards reversed.
+--
+--  * The transistion from a lowercase letter to the same uppercase
+--    letter (and vice versa) have a penalty of @0@.
+--
+--  * All transistions which are not expressed in the matrices have
+--    the highest penalty of @1@.
+module Spell.Confusion
+    ( confusionPenalties
+    ) where
 
 import Control.Arrow ((&&&))
 
@@ -9,6 +45,10 @@ import Data.Maybe (fromMaybe)
 import Spell.Edit (Penalties(..))
 
 
+-- | Implementation of penalty functions using confusion matrices.
+--
+-- Use these penalties as alternative to
+-- 'Spell.Edit.defaultPenalties'.
 confusionPenalties :: Penalties Char Double
 confusionPenalties = Penalties
     { penaltyInsertion    = arrayLookup' arrayInsertion
