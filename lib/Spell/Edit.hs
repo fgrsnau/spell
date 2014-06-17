@@ -8,7 +8,7 @@ import           Data.Maybe (fromJust, isJust, listToMaybe)
 import qualified Data.PQueue.Prio.Min as PMin
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Data.Trie (Trie, branches, end, expandPaths, populate, value)
+import           Data.Trie (Trie, cut, branches, end, expandPaths, populate, value)
 import           Data.Vector.Unboxed (Vector, Unbox)
 import qualified Data.Vector.Unboxed as V
 
@@ -90,8 +90,11 @@ searchBestEdits trie = processQueue (finished, queue)
     processBranches t = let (_, (_, min')) = value t in (min', t)
 
 bestEdits :: (Num p, Ord p, Unbox p)
-             => Penalties Char p -> Text -> Trie Char () -> [Text]
-bestEdits p i = searchBestEdits
+             => Penalties Char p -> Maybe p -> Text -> Trie Char () -> [Text]
+bestEdits p c r = searchBestEdits
                 . expandPaths
+                . maybe id doCut c
                 . shrinkMatrices
-                . populate (calculateEdit p i)
+                . populate (calculateEdit p r)
+  where
+    doCut n = cut (\(_, min') -> min' >= n)
