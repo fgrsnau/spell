@@ -18,6 +18,7 @@ module Spell.Edit where
 import           Control.Arrow ((&&&))
 import           Control.Monad (guard)
 
+import           Data.Char (toLower)
 import           Data.ListLike.Instances ()
 import           Data.Maybe (fromJust, isJust, listToMaybe)
 import qualified Data.PQueue.Prio.Min as PMin
@@ -49,13 +50,18 @@ data Penalties a p = Penalties
 
 
 -- | Penalty functions where all edit operations have a cost of @1@.
-defaultPenalties :: Eq a => Penalties a Int
+defaultPenalties :: Penalties Char Double
 defaultPenalties = Penalties
     { penaltyInsertion    = \_ _ -> 1
     , penaltyDeletion     = \_ _ -> 1
-    , penaltySubstitution = \x y -> if x == y then 0 else 1
     , penaltyReversal     = \_ _ -> 1
+    , penaltySubstitution = subst
     }
+  where
+    subst x y
+      | x == y                 = 0.0
+      | toLower x == toLower y = 0.5
+      | otherwise              = 1.0
 
 -- | Calculates the column vectors for the nodes in the 'Trie'. Meant
 -- to be used with 'populate'.
