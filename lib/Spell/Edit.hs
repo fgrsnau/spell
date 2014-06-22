@@ -20,7 +20,7 @@ import           Control.Monad (guard)
 
 import           Data.Char (toLower)
 import           Data.ListLike.Instances ()
-import           Data.Maybe (fromJust, isJust, listToMaybe)
+import           Data.Maybe (listToMaybe, maybeToList)
 import qualified Data.PQueue.Prio.Min as PMin
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -74,13 +74,15 @@ calculateEdit p r = f
 
     f' (k:ks) (v:vs) v'
       | V.null v' = v V.! i + penaltyDeletion p (listToMaybe ks) k
-      | isJust reversal = fromJust reversal
-      | otherwise = minimum [ v  V.!   i   + penaltyDeletion p (listToMaybe ks) k
-                            , v' V.! (i-1) + penaltyInsertion p (Just k) (r `T.index` (i-1))
-                            , v  V.! (i-1) + penaltySubstitution p k (r `T.index` (i-1))
-                            ]
+      | otherwise = minimum choices
+
       where
         i = V.length v'
+
+        choices = [ v  V.!   i   + penaltyDeletion p (listToMaybe ks) k
+                  , v' V.! (i-1) + penaltyInsertion p (Just k) (r `T.index` (i-1))
+                  , v  V.! (i-1) + penaltySubstitution p k (r `T.index` (i-1))
+                  ] ++ maybeToList reversal
 
         (!?) :: Text -> Int -> Maybe Char
         (!?) t n
