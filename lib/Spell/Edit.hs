@@ -145,18 +145,18 @@ shrinkMatrices = fmap (V.last &&& V.minimum)
 --    queue.
 --
 --  * Repeat everything until the working queue is empty.
-searchBestEdits :: (Num p, Ord p) => Trie Char (Text, (p, p)) -> [Text]
+searchBestEdits :: (Num p, Ord p) => Trie Char (Text, (p, p)) -> [(p, Text)]
 searchBestEdits trie = processQueue (finished, queue)
   where
     finished = PMin.empty
     queue    = PMin.singleton 0 trie
 
     processQueue (f, q)
-      | PMin.null q                    = map snd $ PMin.toAscList f
-      | not (PMin.null f) && f'' < q'' = path : processQueue (f', q)
+      | PMin.null q                    = PMin.toAscList f
+      | not (PMin.null f) && f'' < q'' = h : processQueue (f', q)
       | otherwise                      = processQueue $ processNext (f, q)
       where
-        Just ((f'', path), f') = PMin.minViewWithKey f
+        Just (h@(f'', _), f') = PMin.minViewWithKey f
         (q'', _) = PMin.findMin q
 
     processNext (f, q)
@@ -170,6 +170,10 @@ searchBestEdits trie = processQueue (finished, queue)
 
     processBranches t = let (_, (_, min')) = value t in (min', t)
 
+-- | Like 'searchBestEdits' but only returns the resulting 'Text's.
+searchBestEdits' :: (Num p, Ord p) => Trie Char (Text, (p, p)) -> [Text]
+searchBestEdits' = map snd . searchBestEdits
+
 -- | One-shot function for determining the best suggestions.
 --
 -- This function works lazily, for more information see 'searchBestEdits'.
@@ -182,7 +186,7 @@ bestEdits :: (Num p, Ord p, Unbox p)
              -> Text             -- ^ The reference word.
              -> Trie Char ()     -- ^ The 'Trie' 'Data.Trie.skeleton'.
              -> [Text]
-bestEdits p c r = searchBestEdits
+bestEdits p c r = searchBestEdits'
                 . expandPaths
                 . maybe id doCut c
                 . shrinkMatrices
