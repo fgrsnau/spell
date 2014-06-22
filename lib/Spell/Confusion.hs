@@ -39,7 +39,7 @@ module Spell.Confusion
 import Control.Arrow ((&&&))
 
 import Data.Array.Unboxed (UArray, (!), listArray)
-import Data.Char (ord)
+import Data.Char (ord, toLower)
 import Data.Maybe (fromMaybe)
 
 import Spell.Edit (Penalties(..))
@@ -54,10 +54,13 @@ confusionPenalties = Penalties
     { penaltyInsertion    = arrayLookup' arrayInsertion
     , penaltyDeletion     = arrayLookup' arrayDeletion
     , penaltyReversal     = arrayLookup  arrayReversal
-    , penaltySubstitution = \x y -> if x == y || abs (ord x - ord y) == 32
-                                    then goodValue
-                                    else arrayLookup arraySubstitution x y
+    , penaltySubstitution = subst
     }
+  where
+    subst x y
+      | x == y                 = goodValue
+      | toLower x == toLower y = caseSwitchValue
+      | otherwise              = arrayLookup arraySubstitution x y
 
 makePenalties :: [Int] -> [Double]
 makePenalties = map (1-) . uncurry map . (flip (/) . sum &&& id) . map fromIntegral
@@ -86,6 +89,9 @@ charToIndex' Nothing  = Just 26
 
 badValue :: Double
 badValue = 1.0
+
+caseSwitchValue :: Double
+caseSwitchValue = 0.05
 
 goodValue :: Double
 goodValue = 0.0
