@@ -76,17 +76,18 @@ calculateEdit p r = f
       where
         i = V.length v'
 
+        (!?) :: Text -> Int -> Maybe Char
+        (!?) t n
+          | n < 0     = Nothing
+          | otherwise = fmap fst . T.uncons $ T.drop n t
+
         reversal = do
-          let currentSuggestion = k
-          lastSuggestion <- listToMaybe ks
-          let currentChar = r `T.index` (i-1)
-          lastChar <- do
-            guard $ i - 2 >= 0
-            return $ r `T.index` (i - 2)
-          correctVector <- listToMaybe vs
-          guard (currentSuggestion == lastChar)
-          guard (lastSuggestion == currentChar)
-          return $ correctVector V.! (i-2) + penaltyReversal p lastSuggestion currentSuggestion
+          let s = [Just k, listToMaybe ks]
+              t = [r !? (i-2), r !? (i-1)]
+          [s1, s2] <- sequence s
+          guard (s == t)
+          v2 <- listToMaybe vs
+          return $ v2 V.! (i-2) + penaltyReversal p s2 s1
 
     f' _ _ _ = error "This function should never get called."
 
