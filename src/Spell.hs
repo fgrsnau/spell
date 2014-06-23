@@ -34,7 +34,6 @@ import qualified Data.ByteString.Lazy as B
 import           Data.Char (isAlpha)
 import           Data.List (groupBy)
 import           Data.ListLike.Instances ()
-import           Data.Maybe (fromMaybe, listToMaybe)
 import           Data.Monoid
 import qualified Data.Text as TS
 import qualified Data.Text.IO as TSI
@@ -143,42 +142,71 @@ processAnnotation :: (TS.Text -> IO TS.Text) -> Handle -> Annotation TS.Text -> 
 processAnnotation _ h (Keep t) = TSI.hPutStr h t
 processAnnotation f h (Consider t) = f t >>= TSI.hPutStr h
 
--- | Determines the replacement for the given reference word. The first argument
--- specifies if batching mode is enabled. If batching mode is disabled, the user
--- is asked for every single word.
-determineFunc :: Bool                      -- ^ Batch mode?
-                 -> Penalties Char Double  -- ^ Penalties to use for MED.
-                 -> Maybe Double           -- ^ Just value determines cut off.
-                 -> Trie Char ()           -- ^ The 'Data.Trie.skeleton'.
-                 -> TS.Text                -- ^ Referenece 'TS.Text'.
-                 -> IO TS.Text             -- ^ Determined replacement.
-determineFunc True p c s w = return . fromMaybe w . listToMaybe $ bestEdits' p c w s
-determineFunc False p c s w = do
-  let numbers = map (TS.pack . show) [1 .. 10 :: Int]
-      suggestions = zip numbers (bestEdits' p c w s)
-  if w == snd (head suggestions)
-    then return w
-    else do
-      TSI.putStr "Current word: "
-      TSI.putStrLn w
-      TSI.putStrLn "Suggestions:"
-      forM_ suggestions $ \(n, s') -> do
-        TSI.putStr "  "
-        TSI.putStr n
-        TSI.putStr ") "
-        TSI.putStrLn s'
-      TSI.putStr "Your choice: "
-      hFlush stdout
-      n' <- TSI.getLine
-      let new = case lookup n' suggestions of
-            Nothing -> if n' == "" then w else n'
-            Just s'  -> s'
-      TSI.putStr "Replaced “"
-      TSI.putStr w
-      TSI.putStr "” by “"
-      TSI.putStr new
-      TSI.putStrLn "”\n"
-      return new
+-- | Determines the replacement for the given word and suggestion list. The
+-- first argument specifies if batch mode is enabled.
+determine :: Bool -> TS.Text -> [TS.Text] -> IO TS.Text
+determine _     w []    = return w
+determine True  _ (s:_) = return s
+determine False w ss
+  | w == head ss = return w
+  | otherwise    = ask 5
+  where
+    ask n = do
+      input <- askUser w (take n ss)
+      case input of
+        Nothing -> ask (n + 10)
+        Just w' -> verbose w w' >> return w'
+
+-- | Presents the user the current word and a list of suggestions. The user must
+-- choose the replacement.
+--
+-- Returns 'Nothing' if the user asks for more suggestions. Otherwise returns
+-- the replacement.
+--
+-- The user can input the following:
+--
+--   * Number: Chooses the corresponding word.
+--
+--   * “?”: Requests more suggenstions.
+--
+--   * Empty string: The word is not replaced.
+--
+--   * Every other string @x@: The word is replaced by @x@.
+askUser :: TS.Text -> [TS.Text] -> IO (Maybe TS.Text)
+askUser w ss = do
+  TSI.putStr "Current word: "
+  TSI.putStrLn w
+  TSI.putStrLn "Suggestions:"
+  forM_ suggestions $ \(i, s) -> do
+    TSI.putStr "  "
+    TSI.putStr i
+    TSI.putStr ") "
+    TSI.putStrLn s
+  TSI.putStr "Your choice: "
+  hFlush stdout
+  w' <- TSI.getLine
+  case w' of
+    ""  -> return $ Just w
+    "?" -> return Nothing
+    _   -> return $ lookup w' suggestions <|> Just w'
+  where
+    numbers = map (TS.pack . show) [1 :: Int ..]
+    suggestions = zip numbers ss
+
+-- | Prints the result of the choosen action. The first parameter is the current
+-- word and the second parameter is the replacement.
+verbose :: TS.Text -> TS.Text -> IO ()
+verbose w w'
+  | w == w'   = do
+    TSI.putStr "Did not replace “"
+    TSI.putStr w
+    TSI.putStrLn "”\n"
+  | otherwise = do
+    TSI.putStr "Replaced “"
+    TSI.putStr w
+    TSI.putStr "” by “"
+    TSI.putStr w'
+    TSI.putStrLn "”\n"
 
 -- | The main entry point for the application. Parses the command line argument,
 -- loads the wordlist file, loads the input file and then processes each of the
@@ -187,7 +215,7 @@ main :: IO ()
 main = execParser parser >>= \c -> do
   skel <- loadSkeleton c
   inputs <- loadInput c
-  let f = determineFunc (batch c) (penalties c) (cutting c) skel
+  let f w = determine (batch c) w $ bestEdits' (penalties c) (cutting c) w skel
   withFile (outputFilename c) WriteMode $
     \h -> forM_ inputs $ processAnnotation f h
   where
