@@ -25,6 +25,7 @@ import qualified Data.PQueue.Prio.Min as PMin
 import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Trie (Trie, cut, branches, end, expandPaths, populate, value)
+import           Data.Tuple (swap)
 import           Data.Vector.Unboxed (Vector, Unbox)
 import qualified Data.Vector.Unboxed as V
 
@@ -153,8 +154,8 @@ shrinkMatrices = fmap (V.last &&& V.minimum)
 --    queue.
 --
 --  * Repeat everything until the working queue is empty.
-searchBestEdits :: (Num p, Ord p) => Trie Char (Text, (p, p)) -> [(p, Text)]
-searchBestEdits trie = processQueue (finished, queue)
+searchBestEdits :: (Num p, Ord p) => Trie Char (Text, (p, p)) -> [(Text, p)]
+searchBestEdits trie = map swap $ processQueue (finished, queue)
   where
     finished = PMin.empty
     queue    = PMin.singleton 0 trie
@@ -180,7 +181,7 @@ searchBestEdits trie = processQueue (finished, queue)
 
 -- | Like 'searchBestEdits' but only returns the resulting 'Text's.
 searchBestEdits' :: (Num p, Ord p) => Trie Char (Text, (p, p)) -> [Text]
-searchBestEdits' = map snd . searchBestEdits
+searchBestEdits' = map fst . searchBestEdits
 
 -- | One-shot function for determining the best suggestions.
 --
