@@ -38,9 +38,7 @@ test p = do
       let trie  = shrinkMatrices $ populate (calculateEdit p $ T.pack w) corpus
           left  = searchBestEdits $ expandPaths trie
           right = sortBy (compare `on` snd) . map (second fst) $ toList trie
-          f = (==) `on` (map (sortBy (compare `on` fst))
-                         . take 100 .
-                         groupBy ((==) `on` snd))
+          f = (==) `on` (map (sortBy (compare `on` fst)) . groupBy ((==) `on` snd))
       in  f left right
 
     it "corrects “purlpe” to “purple” with costs ≤ 1.0 (checks reversals)" $
