@@ -114,9 +114,7 @@ update f = go [] []
 cut :: Ord k => (v -> Bool) -> Trie k v -> Trie k v
 cut f = prune . cut' f
 
--- | Removes all nodes for which the predicate holds.
---
--- (Removing the node will also remove all its children.)
+-- | Removes the children of all nodes for which the predicate holds.
 cut' :: Ord k => (v -> Bool) -> Trie k v -> Trie k v
 cut' p t
   | p (value t) = t { children = M.empty }
