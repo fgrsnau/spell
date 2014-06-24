@@ -36,8 +36,6 @@ module Spell.Confusion
     ( confusionPenalties
     ) where
 
-import Control.Arrow ((&&&))
-
 import Data.Array.Unboxed (UArray, (!), listArray)
 import Data.Char (ord, toLower)
 import Data.Maybe (fromMaybe)
@@ -66,7 +64,10 @@ confusionPenalties = Penalties
 --
 -- Calulation: 1 - cell / sum of all elements
 makePenalties :: [Int] -> [Double]
-makePenalties = map (1-) . uncurry map . (flip (/) . sum &&& id) . map fromIntegral
+makePenalties ls = map (\c -> 1 - c / s) ls'
+  where
+    ls' = map fromIntegral ls
+    s   = sum ls'
 
 -- | Looks up the value in the matrix.
 --
