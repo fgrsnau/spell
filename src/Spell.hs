@@ -42,6 +42,7 @@ import qualified Data.Text.Lazy.IO as TLI
 import           Data.Trie (Trie)
 
 import           Options.Applicative
+import           Options.Applicative.Help.Chunk
 
 import           Spell.Confusion (confusionPenalties)
 import           Spell.Edit (Penalties, bestEdits', defaultPenalties)
@@ -94,7 +95,7 @@ data CmdLine = CmdLine
     , outputFilename   :: FilePath
     , batch            :: Bool
     , useConfusion     :: Bool
-    , cutting          :: Maybe Double
+    , cutoff           :: Maybe Double
     } deriving (Read, Eq, Show)
 
 
@@ -103,12 +104,28 @@ data CmdLine = CmdLine
 -- | The command line parser.
 cmdLine :: Parser CmdLine
 cmdLine = CmdLine
-    <$> strOption (short 'w' <> long "wordlist" <> metavar "FILE")
-    <*> strOption (short 'i' <> long "input"    <> metavar "FILE")
-    <*> strOption (short 'o' <> long "output"   <> metavar "FILE")
-    <*> switch    (short 'b' <> long "batch")
-    <*> switch    (short 'u' <> long "use-confusion")
-    <*> optional  (option (short 'c' <> long "cutting" <> metavar "NUMBER"))
+    <$> strOption (short 'w'
+                   <> long "wordlist"
+                   <> metavar "FILE"
+                   <> help "Specifies the wordlist file.")
+    <*> strOption (short 'i'
+                   <> long "input"
+                   <> metavar "FILE"
+                   <> help "Specifies the input file.")
+    <*> strOption (short 'o'
+                   <> long "output"
+                   <> metavar "FILE"
+                   <> help "Specifies the output file.")
+    <*> switch    (short 'b'
+                   <> long "batch"
+                   <> help "Enables batch mode.")
+    <*> switch    (short 'u'
+                   <> long "use-confusion"
+                   <> help "Uses more sophisticated transition matrices.")
+    <*> optional  (option (short 'c'
+                           <> long "cut-off"
+                           <> metavar "NUMBER"
+                           <> help "Specifies cut-off as double value."))
 
 -- | Loads the 'Data.Trie.skeleton' from file.
 loadSkeleton :: CmdLine -> IO (Trie Char ())
@@ -212,11 +229,53 @@ verbose w w'
 -- loads the wordlist file, loads the input file and then processes each of the
 -- annotated words.
 main :: IO ()
-main = execParser parser >>= \c -> do
+main = execParser parserInfo >>= \c -> do
   skel <- loadSkeleton c
   inputs <- loadInput c
-  let f w = determine (batch c) w $ bestEdits' (penalties c) (cutting c) w skel
+  let f w = determine (batch c) w $ bestEdits' (penalties c) (cutoff c) w skel
   withFile (outputFilename c) WriteMode $
     \h -> forM_ inputs $ processAnnotation f h
   where
-    parser = info (helper <*> cmdLine) mempty
+    parserInfo = (info (helper <*> cmdLine) fullDesc) { infoFooter = desc }
+
+    desc = vsepChunks $ map (paragraph . concat)
+           [ [ "This spell checker program will read the input file and write "
+             , "the corrected content to the given output file. It will only "
+             , "consider alphabetical characters and every other character is "
+             , "written unmodified to the output file."
+             ]
+           , [ "If batch mode is enabled, the program will automatically "
+             , "correct the text with the best suggestion it has found. This "
+             , "mode is not interactive."
+             ]
+           , [ "If batch mode is disabled, the program will ask the user "
+             , "for a replacement for every misspelled word. All correctly "
+             , "spelled words are written to the output file without further "
+             , "processing."
+             ]
+           , [ "The program expects the wordlist file to be the output of the "
+             , "“spell-compile” program. The file should contain the binary "
+             , "representation of a pre-compiled “Trie”."
+             ]
+           , [ "To use a more sophisticated transition matrix, pass the "
+             , "“--use-confusion” flag."
+             ]
+           , [ "Additional you can speed up the program by using the "
+             , "“--cut-off” parameter. This will remove all children for "
+             , "nodes where the minimal minimum edit distance exceeds some "
+             , "value. This might change the list of suggestions and the "
+             , "result might get wrong. Too high values will lead to more "
+             , "evaluation of the Trie and the program will actually take "
+             , "longer. A good cut-off value is 2 if you can make sure that "
+             , "the text will probably not contain more than 2 typos per "
+             , "word."
+             ]
+           , [ "During interactive non-batch mode the user has the following "
+             , "options: The user can decide to leave the word unmodified "
+             , "and press ENTER. To choose one of the suggestions, he can "
+             , "insert its number and confirm with ENTER. If the user inputs "
+             , "a question mark (“?”) the program will display more "
+             , "suggestions. The last possibility is to enter a custom "
+             , "replacement which is literally written to the output file."
+             ]
+           ]
