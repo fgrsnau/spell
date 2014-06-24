@@ -62,37 +62,58 @@ confusionPenalties = Penalties
       | toLower x == toLower y = caseSwitchValue
       | otherwise              = arrayLookup arraySubstitution x y
 
+-- | Transforms the original frequencies to penalties.
+--
+-- Calulation: 1 - cell / sum of all elements
 makePenalties :: [Int] -> [Double]
 makePenalties = map (1-) . uncurry map . (flip (/) . sum &&& id) . map fromIntegral
 
+-- | Looks up the value in the matrix.
+--
+-- If there is no value in the matrix for given combination of characters, the
+-- function will return 'badValue'.
 arrayLookup :: UArray (Int, Int) Double -> Char -> Char -> Double
 arrayLookup a x y = fromMaybe badValue $ do
   i <- charToIndex x
   j <- charToIndex y
   return $ a ! (i, j)
 
+-- | Looks up the value in the matrix. The first character is optional.
+--
+-- If there is no value in the matrix for the given combination of characters or
+-- the first parameter is Nothing, the function will return 'badValue'.
 arrayLookup' :: UArray (Int, Int) Double -> Maybe Char -> Char -> Double
 arrayLookup' a x y = fromMaybe badValue $ do
   i <- charToIndex' x
   j <- charToIndex  y
   return $ a ! (i, j)
 
+-- | Calculates the array index for the given character.
+--
+-- Case is handled accordingly. The matrix only contains value for characters in
+-- range @a@ to @z@. If the argument is not in this range, the function will
+-- return 'Nothing'.
 charToIndex :: Char -> Maybe Int
 charToIndex c
   | c >= 'a' && c <= 'z' = Just (ord c - ord 'a')
   | c >= 'A' && c <= 'Z' = Just (ord c - ord 'A')
   | otherwise            = Nothing
 
+-- | The same as 'charToIndex', but returns the index of the @\@@-column if
+-- Nothing is passed as argument.
 charToIndex' :: Maybe Char -> Maybe Int
 charToIndex' (Just c) = charToIndex c
 charToIndex' Nothing  = Just 26
 
+-- | The worst possible value.
 badValue :: Double
 badValue = 1.0
 
+-- | A value uses for a transistion from lowercase to uppercase and vice versa.
 caseSwitchValue :: Double
 caseSwitchValue = 0.05
 
+-- | The best possible value.
 goodValue :: Double
 goodValue = 0.0
 
