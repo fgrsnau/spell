@@ -194,11 +194,16 @@ bestEdits :: (Num p, Ord p, Unbox p)
                                  --   prevents cutting.
              -> Text             -- ^ The reference word.
              -> Trie Char ()     -- ^ The 'Trie' 'Data.Trie.skeleton'.
-             -> [Text]
-bestEdits p c r = searchBestEdits'
+             -> [(Text, p)]
+bestEdits p c r = searchBestEdits
                 . expandPaths
                 . maybe id doCut c
                 . shrinkMatrices
                 . populate (calculateEdit p r)
   where
     doCut n = cut (\(_, min') -> min' >= n)
+
+-- | Like 'bestEdits' but only returns the resulting 'Text's.
+bestEdits' :: (Num p, Ord p, Unbox p)
+              => Penalties Char p -> Maybe p -> Text -> Trie Char () -> [Text]
+bestEdits' p c r = map fst . bestEdits p c r
