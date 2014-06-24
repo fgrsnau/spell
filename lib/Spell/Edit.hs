@@ -70,13 +70,29 @@ calculateEdit :: (Num p, Ord p, Unbox p)
                  => Penalties Char p -> Text -> [Char] -> [Vector p] -> Vector p
 calculateEdit p r = f
   where
+    -- Builds the column vector.
+    --
+    -- The first column vector (pattern match on empty path) contains the
+    -- numbers [0, 1, 2, ...] in the paper. In general this is: [0,
+    -- penaltyInsert_1, penaltyInsert_1 + penaltyInsert_2, ...].
     f [] [] = V.scanl (+) 0 . V.map (penaltyInsertion p Nothing) . V.fromList $ T.unpack r
+    -- For all other column vectors we construct a vector of the right size and
+    -- use a function produce all values.
+    --
+    -- constructN will build a vector of size n and apply our function with a
+    -- vector of growing size until all elements are set. So on our first call
+    -- the vector has size 0, then size 1, etc.
     f ks vs = V.constructN (T.length r + 1) (f' ks vs)
 
+    -- This function will produce the value for the next row of our column
+    -- vector. We start with the lowest cell. See the ks and vs as a stack where
+    -- the ks represents the current path in our Trie and the vs all the values
+    -- on the path.
+    --
+    -- v' is the growing vector we are going to fill.
     f' (k:ks) (v:vs) v'
       | V.null v' = v V.! i + penaltyDeletion p (listToMaybe ks) k
       | otherwise = minimum choices
-
       where
         i = V.length v'
 
@@ -85,17 +101,20 @@ calculateEdit p r = f
                   , v  V.! (i-1) + penaltySubstitution p k (r `T.index` (i-1))
                   ] ++ maybeToList reversal
 
+        -- This is like (T.!), but returns Nothing if out of bounds.
         (!?) :: Text -> Int -> Maybe Char
         (!?) t n
           | n < 0     = Nothing
           | otherwise = fmap fst . T.uncons $ T.drop n t
 
+        -- Checks for reversal. Returns the costs for the reversal or Nothing if
+        -- no reversal is possible.
         reversal = do
           let s = [Just k, listToMaybe ks]
               t = [r !? (i-2), r !? (i-1)]
-          [s1, s2] <- sequence s
-          guard (s == t)
-          v2 <- listToMaybe vs
+          [s1, s2] <- sequence s -- guard against Nothings
+          guard (s == t)         -- check that it’s really a reversal
+          v2 <- listToMaybe vs   -- pop the second element from vector stack
           return $ v2 V.! (i-2) + penaltyReversal p s2 s1
 
     f' _ _ _ = error "This function should never get called."
@@ -160,23 +179,28 @@ searchBestEdits trie = map swap $ processQueue (finished, queue)
     finished = PMin.empty
     queue    = PMin.singleton 0 trie
 
+    -- This function iterates over working queue till empty.
     processQueue (f, q)
-      | PMin.null q                    = PMin.toAscList f
-      | not (PMin.null f) && f'' < q'' = h : processQueue (f', q)
-      | otherwise                      = processQueue $ processNext (f, q)
+      | PMin.null q                    = PMin.toAscList f                  -- working queue empty
+      | not (PMin.null f) && f'' < q'' = h : processQueue (f', q)          -- element is optimal
+      | otherwise                      = processQueue $ processNext (f, q) -- not sure enough, recursion
       where
         Just (h@(f'', _), f') = PMin.minViewWithKey f
         (q'', _) = PMin.findMin q
 
+    -- This function processes the head element of the working queue.  In every
+    -- case the current head is expanded and the children are inserted into the
+    -- working queue.
     processNext (f, q)
-      | end t     = (f', q'')
-      | otherwise = (f,  q'')
+      | end t     = (f', q'') -- reinsert element in finished queue
+      | otherwise = (f,  q'') -- keep finished queue,
       where
         Just (t, q') = PMin.minView q
         (path, (last', _)) = value t
         f' = PMin.insert last' path f
         q'' = q' `PMin.union` PMin.fromList (map (processBranches .snd) $ branches t)
 
+    -- Calculates values for all the branches (children).
     processBranches t = let (_, (_, min')) = value t in (min', t)
 
 -- | Like 'searchBestEdits' but only returns the resulting 'Text's.
