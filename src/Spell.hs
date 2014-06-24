@@ -33,7 +33,6 @@ import           Data.Binary (decode)
 import qualified Data.ByteString.Lazy as B
 import           Data.Char (isAlpha)
 import           Data.List (groupBy)
-import           Data.ListLike.Instances ()
 import           Data.Monoid
 import qualified Data.Text as TS
 import qualified Data.Text.IO as TSI

@@ -39,12 +39,9 @@ executable spell
         base                 == 4.7.*,
         binary               == 0.7.*,
         bytestring           == 0.10.*,
-        ListLike             == 4.1.*,
         optparse-applicative == 0.9.*,
-        pqueue               == 1.2.*,
         spell                == 0.1.*,
         text                 == 1.1.*,
-        vector               == 0.10.*,
         zlib                 == 0.5.*
 
     hs-source-dirs:
