@@ -31,14 +31,14 @@ import           Control.Monad
 
 import           Data.Binary (decode)
 import qualified Data.ByteString.Lazy as B
-import           Data.Char (isAlpha)
 import           Data.List (groupBy)
 import           Data.Monoid
+import qualified Data.Set as S
 import qualified Data.Text as TS
 import qualified Data.Text.IO as TSI
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text.Lazy.IO as TLI
-import           Data.Trie (Trie)
+import           Data.Trie (Trie, toList)
 
 import           Options.Applicative
 import           Options.Applicative.Help.Chunk
@@ -72,11 +72,11 @@ annotationConstr (Keep     _) = Keep
 
 -- | Annotates each 'Char' in the 'String'. All alphabetical characters are
 -- “considered” and the rest is “kept”.
-annotate :: String -> [Annotation Char]
-annotate = map f
+annotate :: (Char -> Bool) -> String -> [Annotation Char]
+annotate p = map f
   where
     f x
-      | isAlpha x = Consider x
+      | p x       = Consider x
       | otherwise = Keep x
 
 -- | Merges subsequent annotations of the same type.
@@ -133,11 +133,11 @@ loadSkeleton CmdLine { wordlistFilename = f } = do
   return . decode $ decompress content
 
 -- | Loads the input file and annotates the 'TS.Text'.
-loadInput :: CmdLine -> IO [Annotation TS.Text]
-loadInput CmdLine { inputFilename = f } = do
+loadInput :: (Char -> Bool) -> CmdLine -> IO [Annotation TS.Text]
+loadInput p CmdLine { inputFilename = f } = do
   handle <- openFile f ReadMode
   content <- TLI.hGetContents handle
-  return $ annotateText content
+  return $ annotateText p content
 
 -- | Returns the penalty functions according to command line flags.
 penalties :: CmdLine -> Penalties Char Double
@@ -147,9 +147,16 @@ penalties CmdLine { useConfusion = c }
 
 -- * Main Functionality of the Program
 
+-- | Takes a 'Trie' and returns a function which will return True if
+-- the character is available in the Trie.
+triePredicate :: Ord k => Trie k v -> k -> Bool
+triePredicate t = flip S.member s
+ where
+   s = S.fromList . concat . map fst $ toList t
+
 -- | Annotates each word in the 'TS.Text'.
-annotateText :: TL.Text -> [Annotation TS.Text]
-annotateText = map (fmap TS.pack) . mergeAnnotation . annotate . TL.unpack
+annotateText :: (Char -> Bool) -> TL.Text -> [Annotation TS.Text]
+annotateText p = map (fmap TS.pack) . mergeAnnotation . annotate p . TL.unpack
 
 -- | Processes each annotation. All values which should be kept are written to
 -- the output handle as is. All other values are mangled through the function in
@@ -230,7 +237,7 @@ verbose w w'
 main :: IO ()
 main = execParser parserInfo >>= \c -> do
   skel <- loadSkeleton c
-  inputs <- loadInput c
+  inputs <- loadInput (triePredicate skel) c
   let f w = determine (batch c) w $ bestEdits' (penalties c) (cutoff c) w skel
   withFile (outputFilename c) WriteMode $
     \h -> forM_ inputs $ processAnnotation f h
