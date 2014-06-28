@@ -23,7 +23,7 @@ import           Data.Maybe (listToMaybe, maybeToList)
 import qualified Data.PQueue.Prio.Min as PMin
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Data.Trie (Trie, cut, branches, end, expandPaths, populate, update, value)
+import           Data.Trie (Trie, branches, end, expandPaths, populate, update, value)
 import           Data.Tuple (swap)
 import           Data.Vector.Unboxed (Vector, Unbox)
 import qualified Data.Vector.Unboxed as V
@@ -181,15 +181,19 @@ shrinkMatrices = update f
 --    queue.
 --
 --  * Repeat everything until the working queue is empty.
-searchBestEdits :: (Num p, Ord p) => Trie Char (Text, (p, p)) -> [(Text, p)]
-searchBestEdits trie = map swap $ processQueue (finished, queue)
+searchBestEdits :: (Num p, Ord p) => Maybe p -> Trie Char (Text, (p, p)) -> [(Text, p)]
+searchBestEdits c trie = map swap $ processQueue (finished, queue)
   where
     finished = PMin.empty
     queue    = PMin.singleton 0 trie
 
+    -- Checks if value is greater than the Just value of cut off.
+    checkCutOff x = maybe False (x >) c
+
     -- This function iterates over working queue till empty.
     processQueue (f, q)
       | PMin.null q                    = PMin.toAscList f                  -- working queue empty
+      | checkCutOff q''                = []                                -- cut off detected
       | not (PMin.null f) && f'' < q'' = h : processQueue (f', q)          -- element is optimal
       | otherwise                      = processQueue $ processNext (f, q) -- not sure enough, recursion
       where
@@ -212,8 +216,8 @@ searchBestEdits trie = map swap $ processQueue (finished, queue)
     processBranches t = let (_, (_, min')) = value t in (min', t)
 
 -- | Like 'searchBestEdits' but only returns the resulting 'Text's.
-searchBestEdits' :: (Num p, Ord p) => Trie Char (Text, (p, p)) -> [Text]
-searchBestEdits' = map fst . searchBestEdits
+searchBestEdits' :: (Num p, Ord p) => Maybe p -> Trie Char (Text, (p, p)) -> [Text]
+searchBestEdits' c = map fst . searchBestEdits c
 
 -- | One-shot function for determining the best suggestions.
 --
@@ -227,13 +231,10 @@ bestEdits :: (Num p, Ord p, Unbox p)
              -> Text             -- ^ The reference word.
              -> Trie Char ()     -- ^ The 'Trie' 'Data.Trie.skeleton'.
              -> [(Text, p)]
-bestEdits p c r = searchBestEdits
+bestEdits p c r = searchBestEdits c
                 . expandPaths
-                . maybe id doCut c
                 . shrinkMatrices
                 . populate (calculateEdit p r)
-  where
-    doCut n = cut (\(_, min') -> min' >= n)
 
 -- | Like 'bestEdits' but only returns the resulting 'Text's.
 bestEdits' :: (Num p, Ord p, Unbox p)

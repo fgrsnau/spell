@@ -36,7 +36,7 @@ test p = do
   describe "searchBestEdits" $ do
     it "returns 100 first optimal elements in correct order" $ property $ \w ->
       let trie  = shrinkMatrices $ populate (calculateEdit p $ T.pack w) corpus
-          left  = searchBestEdits $ expandPaths trie
+          left  = searchBestEdits Nothing $ expandPaths trie
           right = sortBy (compare `on` snd) . map (second fst) $ toList trie
           f = (==) `on` (map (sortBy (compare `on` fst)) . groupBy ((==) `on` snd))
       in  f left right
