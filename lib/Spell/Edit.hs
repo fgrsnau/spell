@@ -15,7 +15,6 @@
 -- using <http://en.wikipedia.org/wiki/Trie prefix trees>.
 module Spell.Edit where
 
-import           Control.Arrow ((&&&))
 import           Control.Monad (guard)
 
 import           Data.Char (toLower)
@@ -24,7 +23,7 @@ import           Data.Maybe (listToMaybe, maybeToList)
 import qualified Data.PQueue.Prio.Min as PMin
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Data.Trie (Trie, cut, branches, end, expandPaths, populate, value)
+import           Data.Trie (Trie, cut, branches, end, expandPaths, populate, update, value)
 import           Data.Tuple (swap)
 import           Data.Vector.Unboxed (Vector, Unbox)
 import qualified Data.Vector.Unboxed as V
@@ -131,8 +130,17 @@ calculateEdit p r = f
 --    heuristic. Each edit path must pass this column vector and the scores
 --    can only get higher. If we have an edit with a value smaller than
 --    this minimum, we can completely ignore this node.
+--
+-- Due to reversals the result might get wrong if we only consider the minimum
+-- of the current vector. Reversals allow jumps and the minimum element of the
+-- vector might decrease. To fix this we take the minimum of the current and the
+-- previous vector (the reversal costs only skip one column vector).
 shrinkMatrices :: (Ord p, Unbox p) => Trie Char (Vector p) -> Trie Char (p, p)
-shrinkMatrices = fmap (V.last &&& V.minimum)
+shrinkMatrices = update f
+  where
+    f []        _ _ = undefined
+    f [v1]      _ _ = (V.last v1, V.minimum v1)
+    f (v1:v2:_) _ _ = (V.last v1, min (V.minimum v1) (V.minimum v2))
 
 -- | Lazily returns all suggestions sorted in order of increasing edit distance.
 --
