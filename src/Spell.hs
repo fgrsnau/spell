@@ -32,6 +32,7 @@ import           Control.Monad
 import           Data.Binary (decode)
 import qualified Data.ByteString.Lazy as B
 import           Data.List (groupBy)
+import           Data.Maybe (fromMaybe, listToMaybe)
 import           Data.Monoid
 import qualified Data.Set as S
 import qualified Data.Text as TS
@@ -168,11 +169,11 @@ processAnnotation f h (Consider t) = f t >>= TSI.hPutStr h
 -- | Determines the replacement for the given word and suggestion list. The
 -- first argument specifies if batch mode is enabled.
 determine :: Bool -> TS.Text -> [TS.Text] -> IO TS.Text
-determine _     w []    = return w
-determine True  _ (s:_) = return s
-determine False w ss
-  | w == head ss = return w
-  | otherwise    = ask 5
+determine True  w ss = return . fromMaybe w $ listToMaybe ss
+determine False w ss = case ss of
+  []           -> ask 0     -- No suggestions, ask user for new word.
+  s:_ | w == s -> return w  -- The first suggestion is original word, so don’t ask.
+  _            -> ask 5     -- Otherwise display suggestions and ask.
   where
     ask n = do
       input <- askUser w (take n ss)
@@ -200,6 +201,7 @@ askUser w ss = do
   TSI.putStr "Current word: "
   TSI.putStrLn w
   TSI.putStrLn "Suggestions:"
+  when (null ss) $ TSI.putStrLn "  (No suggestions.)"
   forM_ suggestions $ \(i, s) -> do
     TSI.putStr "  "
     TSI.putStr i
