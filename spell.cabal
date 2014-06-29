@@ -1,0 +1,30 @@
+name:                spell
+version:             0.1.0.0
+author:              Stefan Haller
+maintainer:          haliner@gmail.com
+copyright:           (c) 2014 Stefan Haller
+build-type:          Simple
+cabal-version:       >=1.10
+
+
+library
+    build-depends:
+        array        == 0.5.*,
+        base         == 4.7.*,
+        containers   == 0.5.*,
+        ListLike     == 4.1.*,
+        transformers == 0.4.*,
+        vector       == 0.10.*
+
+    hs-source-dirs:
+        lib
+
+    exposed-modules:
+        Data.Trie
+        Data.Trie.Internal
+        Data.Trie.Pretty
+        Spell.Confusion
+        Spell.Edit
+
+    default-language:
+        Haskell2010
